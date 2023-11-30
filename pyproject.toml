@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "deep-rl"
+version = "0.1.0"
+description = ""
+authors = ["TristanBester <tristanbester@gmail.com>"]
+readme = "README.md"
+packages = [{include = "deep_rl"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.12"
+gymnasium = {extras = ["classic-control"], version = "^0.29.1"}
+torch = "^2.1.1"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.11.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.pylint.MASTER]
+disable=["C0114", "R0903", "E1101"]
+
+
+[tool.isort]
+profile = "black"
+py_version=311
+line_length=88
