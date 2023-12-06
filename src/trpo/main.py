@@ -179,7 +179,7 @@ def surrogate_loss(old_action_probas, current_action_probas, advantages):
 def hessian_vector_product(grad_kl, x, parameters):
     product = grad_kl @ x
     result = torch.autograd.grad(
-        product, parameters, retain_graph=True, create_graph=True
+        product, parameters, create_graph=True, retain_graph=True
     )
     return torch.cat([t.view(-1) for t in result])
 
@@ -191,14 +191,9 @@ def solve_search_direction(g, grad_kl, parameters):
 
     i = 0
     while i < 100:
-        print(p)
-
         AVP = hessian_vector_product(grad_kl, p, parameters)
-        print(AVP)
-
         dot_old = r @ r
-        alpha = dot_old / (p @ AVP)
-
+        alpha = dot_old / ((p @ AVP + 0.0001))
         x_new = x + alpha * p
 
         if (x - x_new).norm() <= 0:
@@ -206,10 +201,8 @@ def solve_search_direction(g, grad_kl, parameters):
 
         i += 1
         r = r - alpha * AVP
-
         beta = (r @ r) / dot_old
         p = r + beta * p
-
         x = x_new
     return x
 
@@ -226,7 +219,7 @@ def train_trpo(
     np.random.seed(seed)
 
     obs_dim = env.observation_space.shape[0]
-    hidden_sizes = [hidden_size] * hidden_layers
+    # hidden_sizes = [hidden_size] * hidden_layers
 
     if isinstance(env.action_space, Discrete):
         act_dim = env.action_space.n
@@ -238,7 +231,7 @@ def train_trpo(
     critic = Critic(obs_dim=obs_dim)
 
     for _ in range(n_epochs):
-        buffer = rollout(env, actor=actor, critic=critic, n_episodes=5)
+        buffer = rollout(env, actor=actor, critic=critic, n_episodes=1000)
 
         obs = torch.as_tensor(buffer.get_obs(), dtype=torch.float32)
         actions = torch.as_tensor(buffer.get_actions(), dtype=torch.float32)
@@ -251,14 +244,18 @@ def train_trpo(
             current_action_probas = actor.get_action_probas(obs, actions)
             current_action_distribution = actor.get_distribution(obs)
 
+            print(advantages)
+
             # Solve for g
             loss_l = surrogate_loss(
                 old_action_probas, current_action_probas, advantages
             )
-            g = torch.autograd.grad(
-                loss_l, actor.network.parameters(), retain_graph=True
-            )
+            g = torch.autograd.grad(loss_l, actor.network.parameters())
+            print(g)
             g = torch.concat([t.flatten() for t in g])
+
+            print(loss_l)
+            print(g)
 
             # Solve for search direction
             loss_kl = F.kl_div(
@@ -278,8 +275,23 @@ def train_trpo(
                 g, grad_kl, actor.network.parameters()
             )
 
-            print(search_direction)
+            # Compute step length
+            max_step_length = torch.sqrt(
+                2
+                * 0.01
+                / (
+                    search_direction
+                    @ hessian_vector_product(
+                        grad_kl, search_direction, actor.network.parameters()
+                    )
+                    + 0.0001
+                )
+            )
 
+            # Compute max update
+            max_update = max_step_length * search_direction
+
+            print(max_update)
             0 / 0
 
 
